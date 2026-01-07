@@ -16,7 +16,7 @@ reportlab
 PyMuPDF
 langchain_groq
 sentence-transformers
-langchain-huggingface
+langchain_huggingface
 uvicorn[standard] 
 fastapi
 python-multipart
