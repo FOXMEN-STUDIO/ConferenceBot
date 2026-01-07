@@ -1,0 +1,10 @@
+import sys
+from dotenv import load_dotenv,find_dotenv
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_community.document_loaders import TextLoader,WebBaseLoader,UnstructuredURLLoader
+from langchain_core.runnables import RunnablePassthrough
+
