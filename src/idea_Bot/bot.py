@@ -10,7 +10,7 @@ def idea_generation_Bot(field,topic,novelty,target_venue,style):
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.9)
     # Build chain using existing 'prompt' (defined in an earlier cell)
     chain = (
         {

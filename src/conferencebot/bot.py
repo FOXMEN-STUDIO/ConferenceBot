@@ -19,7 +19,7 @@ def conference_bot(question):
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.9)
 
     # loading data 
     loader = UnstructuredURLLoader(urls=["https://aziz-ashfak.github.io/profile/"])
