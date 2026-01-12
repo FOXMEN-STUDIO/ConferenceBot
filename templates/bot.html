@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ bot.name }}{% endblock %}
+
+{% block content %}
+<div class="tool-container">
+    <h1>{{ bot.name }}</h1>
+
+    <form method="post" class="tool-form">
+        {% if bot.id == "citation" %}
+        <div class="form-group">
+            <label>BibTeX Entry</label>
+            <textarea name="bibtex" rows="10" required placeholder="Paste BibTeX here...">{{ last_values.bibtex or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Style</label>
+            <select name="style">
+                <option value="APA"     {% if last_values.style == 'APA'     %}selected{% endif %}>APA</option>
+                <option value="IEEE"    {% if last_values.style == 'IEEE'    %}selected{% endif %}>IEEE</option>
+                <option value="MLA"     {% if last_values.style == 'MLA'     %}selected{% endif %}>MLA</option>
+                <option value="Chicago" {% if last_values.style == 'Chicago' %}selected{% endif %}>Chicago</option>
+                <option value="Harvard" {% if last_values.style == 'Harvard' %}selected{% endif %}>Harvard</option>
+                <option value="Vancouver" {% if last_values.style == 'Vancouver' %}selected{% endif %}>Vancouver</option>
+            </select>
+        </div>
+
+        {% elif bot.id == "idea" %}
+        <div class="form-group">
+            <label>Field</label>
+            <input type="text" name="field" value="{{ last_values.field or '' }}" required>
+        </div>
+        <div class="form-group">
+            <label>Topic</label>
+            <textarea name="topic" rows="4">{{ last_values.topic or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Novelty</label>
+            <input type="text" name="novelty" value="{{ last_values.novelty or '' }}">
+        </div>
+        <div class="form-group">
+            <label>Target Venue</label>
+            <input type="text" name="target_venue" value="{{ last_values.target_venue or '' }}">
+        </div>
+        <div class="form-group">
+            <label>Style</label>
+            <input type="text" name="style_text" value="{{ last_values.style_text or '' }}">
+        </div>
+
+        {% elif bot.id == "conference" %}
+        <div class="form-group">
+            <label>Question</label>
+            <textarea name="question" rows="6" required placeholder="Ask anything...">{{ last_values.question or '' }}</textarea>
+        </div>
+
+        {% else %}
+        <div class="form-group">
+            <p style="color:#aaa;">Custom input fields not defined yet for this bot.</p>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn-primary">
+            <i class="fa-solid fa-play"></i> Run
+        </button>
+    </form>
+
+    {% if error %}
+    <div class="result error">
+        <strong>Error:</strong><br>{{ error }}
+    </div>
+    {% endif %}
+
+    {% if result is not none %}
+    <div class="result">
+        <h3>Result</h3>
+        <pre>{{ result }}</pre>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

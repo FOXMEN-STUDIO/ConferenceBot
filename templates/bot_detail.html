@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ bot.name | default("Bot") }}</title>
+</head>
+<body style="font-family: system-ui, sans-serif; padding: 2rem; background:#0f0f17; color:#e0e0e0;">
+    <h1 style="color:#7c3aed;">{{ bot.name | default("Unknown Bot") }}</h1>
+    <p>This is a test page — template is now working!</p>
+
+    {% if result %}
+    <h3 style="color:#58a6ff;">Result:</h3>
+    <pre style="background:#1f2937; padding:1rem; border-radius:8px;">{{ result }}</pre>
+    {% endif %}
+
+    {% if error %}
+    <h3 style="color:#f85149;">Error:</h3>
+    <pre style="background:#2d1a1a; padding:1rem; border-radius:8px;">{{ error }}</pre>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,122 @@
+:root {
+    --sidebar-w: 260px;
+    --bg: #0d1117;
+    --sidebar: #161b22;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --primary: #7c3aed;
+    --primary-dark: #5c21d1;
+    --border: #30363d;
+    --surface: #1f2937;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+    font-family: system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+}
+
+.layout {
+    display: flex;
+    height: 100vh;
+}
+
+.sidebar {
+    width: var(--sidebar-w);
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+}
+
+.logo {
+    padding: 1.6rem 1.3rem;
+    font-size: 1.6rem;
+    font-weight: bold;
+    color: var(--primary);
+    border-bottom: 1px solid var(--border);
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 1rem 1.4rem;
+    color: var(--muted);
+    text-decoration: none;
+    transition: 0.15s;
+}
+
+.nav-item:hover,
+.nav-item.active {
+    background: rgba(124,58,237,0.15);
+    color: white;
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem 2.5rem;
+    overflow-y: auto;
+}
+
+.tool-container h1 {
+    margin-bottom: 1.6rem;
+}
+
+.tool-form {
+    max-width: 760px;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--muted);
+}
+
+.form-group textarea,
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.85rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.9rem 1.8rem;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark);
+}
+
+.result, .error {
+    margin-top: 2.5rem;
+    padding: 1.5rem;
+    border-radius: 8px;
+}
+
+.result {
+    background: #1a2230;
+    border: 1px solid #334155;
+}
+
+.error {
+    background: rgba(248,81,73,0.12);
+    border: 1px solid #f85149;
+}

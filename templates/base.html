@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{% block title %}Research Tools{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="logo">Research Tools</div>
+            <nav>
+                {% for bot in bots %}
+                <a href="/bot/{{ bot.id }}"
+                   class="nav-item {% if request.url.path == '/bot/' + bot.id %}active{% endif %}">
+                    <i class="fa-solid fa-robot"></i>
+                    <span>{{ bot.name }}</span>
+                </a>
+                {% endfor %}
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>
