@@ -6,7 +6,7 @@
 <div class="tool-container">
     <h1>{{ bot.name }}</h1>
 
-    <form method="post" class="tool-form">
+    <form method="post" class="tool-form" enctype="multipart/form-data">
         {% if bot.id == "citation" %}
         <div class="form-group">
             <label>BibTeX Entry</label>
@@ -48,8 +48,54 @@
 
         {% elif bot.id == "conference" %}
         <div class="form-group">
-            <label>Question</label>
-            <textarea name="question" rows="6" required placeholder="Ask anything...">{{ last_values.question or '' }}</textarea>
+            <label>Conference URL or PDF path</label>
+            <input type="text" name="pdf_path" value="{{ last_values.pdf_path or '' }}" placeholder="https://conference.org/2026/ or C:/path/to/file.pdf">
+        </div>
+        <div class="form-group">
+            <label>PDF Upload (optional)</label>
+            <input type="file" name="pdf_file" accept="application/pdf">
+        </div>
+        <div class="form-group">
+            <button type="button" class="btn-primary" id="index-btn">Index Conference</button>
+            <p style="color:#aaa; margin-top:8px;">Click <strong>Index Conference</strong> after uploading a PDF or entering a URL to pre-index materials for faster chat.</p>
+        </div>
+
+        <hr style="margin: 1.2rem 0; border-color: var(--border)">
+
+        <div class="chat-container">
+            <h3>Conference Chat</h3>
+            <div id="chat-window" style="border:1px solid var(--border); padding:12px; border-radius:8px; height:300px; overflow:auto; background: #091018;">
+                <!-- Messages will appear here -->
+            </div>
+            <div style="margin-top:0.8rem; display:flex; gap:8px;">
+                <input type="text" id="chat-input" placeholder="Ask about this conference (e.g., dates, location, topics)..." style="flex:1; padding:0.6rem; border-radius:6px; background:var(--surface); border:1px solid var(--border); color:var(--text);">
+                <button type="button" class="btn-primary" id="chat-send">Send</button>
+            </div>
+            <p style="color:#999; margin-top:6px;">Tip: Use <strong>Index Conference</strong> first for faster and more accurate answers when using large PDFs/URLs.</p>
+        </div>
+
+        {% elif bot.id == "writer" %}
+        <div class="form-group">
+            <label>Input Text</label>
+            <textarea name="input_text" rows="8" placeholder="Provide text to generate/expand into an academic paragraph...">{{ last_values.input_text or '' }}</textarea>
+        </div>
+
+        {% elif bot.id == "reviewer" or bot.id == "analyst" %}
+        <div class="form-group">
+            <label>Paper text or PDF path/URL</label>
+            <textarea name="paper_text" rows="8" placeholder="Paste paper text or provide a path/URL to a PDF">{{ last_values.paper_text or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>PDF Upload (optional)</label>
+            <input type="file" name="pdf_file" accept="application/pdf">
+        </div>
+        <div class="form-group">
+            <label>PDF URL or path (optional)</label>
+            <input type="text" name="pdf_path" value="{{ last_values.pdf_path or '' }}" placeholder="https://... or C:/path/to/file.pdf">
+        </div>
+        <div class="form-group">
+            <label>Question / Instruction</label>
+            <textarea name="question" rows="3" placeholder="What do you want the bot to do? (e.g., review, summarize)">{{ last_values.question or '' }}</textarea>
         </div>
 
         {% else %}
@@ -58,10 +104,17 @@
         </div>
         {% endif %}
 
-        <button type="submit" class="btn-primary">
+        <button type="submit" class="btn-primary" id="run-btn">
             <i class="fa-solid fa-play"></i> Run
         </button>
     </form>
+
+    <div id="stream-area">
+        <div class="result" id="result-box" style="display: none;">
+            <h3>Result</h3>
+            <pre id="result-pre">{% if result is not none %}{{ result }}{% endif %}</pre>
+        </div>
+    </div>
 
     {% if error %}
     <div class="result error">
@@ -69,11 +122,162 @@
     </div>
     {% endif %}
 
-    {% if result is not none %}
-    <div class="result">
-        <h3>Result</h3>
-        <pre>{{ result }}</pre>
-    </div>
-    {% endif %}
+<script>
+// Intercept the form submit and stream the response from /bot/{bot.id}/stream
+(function(){
+    const form = document.querySelector('.tool-form');
+    const runBtn = document.getElementById('run-btn');
+    const resultBox = document.getElementById('result-box');
+    const resultPre = document.getElementById('result-pre');
+
+    // Generic run (for non-conference bots)
+    form.addEventListener('submit', async function(e){
+        // If on conference page, let the chat handlers manage interactions
+        if (window.location.pathname.includes('/bot/conference')) {
+            e.preventDefault();
+            return; // do nothing - chat or index buttons handle it
+        }
+
+        e.preventDefault();
+        runBtn.disabled = true;
+        resultBox.style.display = 'block';
+        resultPre.textContent = '';
+
+        const formData = new FormData(form);
+        const resp = await fetch(window.location.pathname + '/stream', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!resp.ok) {
+            const text = await resp.text();
+            resultPre.textContent = 'Error: ' + text;
+            runBtn.disabled = false;
+            return;
+        }
+
+        // Stream reading
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        while (!done) {
+            const {value, done: streamDone} = await reader.read();
+            if (value) {
+                resultPre.textContent += decoder.decode(value);
+            }
+            done = streamDone;
+        }
+
+        runBtn.disabled = false;
+    });
+
+    // Conference-specific handlers
+    if (window.location.pathname.includes('/bot/conference')){
+        const indexBtn = document.getElementById('index-btn');
+        const chatWindow = document.getElementById('chat-window');
+        const chatInput = document.getElementById('chat-input');
+        const chatSend = document.getElementById('chat-send');
+
+        function appendMsg(text, who='bot'){
+            const p = document.createElement('div');
+            p.style.margin = '6px 0';
+            if (who === 'user'){
+                p.innerHTML = `<div style="text-align:right; color:#d1e7ff">${text}</div>`;
+            } else {
+                p.innerHTML = `<div style="text-align:left">${text}</div>`;
+            }
+            chatWindow.appendChild(p);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        // Index button: pre-index the provided source (PDF or URL)
+        indexBtn.addEventListener('click', async function(){
+            indexBtn.disabled = true;
+            appendMsg('Indexing conference source...', 'bot');
+
+            const formData = new FormData(form);
+            // Ensure we do not send a question so server triggers indexing path
+            formData.delete('question');
+
+            const resp = await fetch(window.location.pathname + '/stream', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!resp.ok){
+                const text = await resp.text();
+                appendMsg('Error: ' + text, 'bot');
+                indexBtn.disabled = false;
+                return;
+            }
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let done = false;
+            let buf = '';
+            while (!done){
+                const {value, done: streamDone} = await reader.read();
+                if (value) {
+                    buf += decoder.decode(value);
+                    // update last line
+                    appendMsg(buf, 'bot');
+                    buf = '';
+                }
+                done = streamDone;
+            }
+            indexBtn.disabled = false;
+        });
+
+        // Chat send button
+        chatSend.addEventListener('click', async function(){
+            const q = chatInput.value && chatInput.value.trim();
+            if (!q) return;
+            appendMsg(q, 'user');
+            chatInput.value = '';
+
+            const formData = new FormData(form);
+            formData.set('question', q);
+
+            // show placeholder for bot
+            appendMsg('…', 'bot');
+            const botPlaceholder = chatWindow.lastChild;
+
+            const resp = await fetch(window.location.pathname + '/stream', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!resp.ok) {
+                const text = await resp.text();
+                botPlaceholder.innerHTML = `<div style="text-align:left">Error: ${text}</div>`;
+                return;
+            }
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let done = false;
+            let partial = '';
+            // accumulate streamed chunks into the last node
+            while (!done){
+                const {value, done: streamDone} = await reader.read();
+                if (value) {
+                    partial += decoder.decode(value);
+                    botPlaceholder.innerHTML = `<div style="text-align:left">${partial}</div>`;
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                }
+                done = streamDone;
+            }
+        });
+
+        // Send on Enter
+        chatInput.addEventListener('keydown', function(e){
+            if (e.key === 'Enter'){
+                e.preventDefault();
+                chatSend.click();
+            }
+        });
+    }
+})();
+</script>
 </div>
 {% endblock %}

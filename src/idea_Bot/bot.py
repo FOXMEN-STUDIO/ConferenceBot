@@ -38,5 +38,5 @@ def idea_generation_Bot(field,topic,novelty,target_venue,style):
 
     # Generate research idea
     response = chain.invoke(user_input)
-    # Print output JSON
-    print(response.content)
+    # Return output string for the UI to display
+    return response.content

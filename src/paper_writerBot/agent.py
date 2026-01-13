@@ -21,9 +21,13 @@ def paper_writer(input_text):
     polisher_result = polisher_task()
     polished_paragraph = polisher_result["polished"]
 
+    # Return a structured result string containing draft and polished paragraph
+    result = """
+Generated Paragraph:
+{draft}
 
-    # 5. Display Results
-    # -----------------------------
-    print("Generated Paragraph:\n", draft_paragraph)
-    print("\nPolished Paragraph:\n", polished_paragraph)
+Polished Paragraph:
+{polished}
+""".format(draft=draft_paragraph, polished=polished_paragraph)
 
+    return result

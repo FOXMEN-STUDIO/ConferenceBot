@@ -7,32 +7,73 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import TextLoader,WebBaseLoader,UnstructuredURLLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.runnables import RunnablePassthrough
 from .promt import prompt
+
+# Module-level cache for vectorstores keyed by source
+_VECTORSTORE_CACHE = {}
 
 # Convert Documents → string
 def format_docs(docs):
     return "\n\n".join([d.page_content for d in docs])
 
-def conference_bot(question):
+
+def _key_for_source(source: str):
+    if not source:
+        return "__default_profile__"
+    return source
+
+
+def build_index(source: str = None):
+    """Build and cache a vectorstore for the given source (URL, local PDF path, or raw text)."""
+    key = _key_for_source(source)
+    if key in _VECTORSTORE_CACHE:
+        return f"Already indexed source: {key}"
+
+    if source and source.strip().lower().endswith('.pdf'):
+        loader = PyMuPDFLoader(source)
+        documents = loader.load()
+        texts = [d.page_content for d in documents]
+    elif source and source.strip().lower().startswith('http'):
+        loader = UnstructuredURLLoader(urls=[source])
+        data = loader.load()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+        docs = text_splitter.split_documents(data)
+        texts = [doc.page_content for doc in docs]
+    else:
+        # treat source as raw text or use default profile
+        raw = source or "https://aziz-ashfak.github.io/profile/"
+        if raw.startswith('http'):
+            loader = UnstructuredURLLoader(urls=[raw])
+            data = loader.load()
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+            docs = text_splitter.split_documents(data)
+            texts = [doc.page_content for doc in docs]
+        else:
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+            texts = text_splitter.split_text(raw)
+
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    vectorstore = FAISS.from_texts(texts, embeddings)
+    _VECTORSTORE_CACHE[key] = vectorstore
+    return f"Indexed {len(texts)} chunks for source: {key}"
+
+
+def conference_bot(question, source: str = None):
     _ = load_dotenv(find_dotenv())  # read local .env file
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
     llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.9)
 
-    # loading data 
-    loader = UnstructuredURLLoader(urls=["https://aziz-ashfak.github.io/profile/"])
-    data = loader.load()
+    key = _key_for_source(source)
+    if key not in _VECTORSTORE_CACHE:
+        # build index for default or given source
+        build_index(source)
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-    docs = text_splitter.split_documents(data)
-
-    texts = [doc.page_content for doc in docs]
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectorstore = FAISS.from_texts(texts, embeddings)
+    vectorstore = _VECTORSTORE_CACHE[key]
     retrive = vectorstore.as_retriever()
-    # Convert Documents → string
 
     # # Chain
     chain = (
@@ -43,4 +84,5 @@ def conference_bot(question):
         | prompt
         | llm
     )
-    print(chain.invoke(question).content)
+    # Return the resulting content so callers can display it
+    return chain.invoke(question).content
