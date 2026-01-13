@@ -15,12 +15,14 @@ class WriterTask(Task):
 
     def __call__(self):
         prompt = f"""
-Write a clear, coherent, and well-structured academic paragraph based on the following text:
+Write a single polished academic paragraph based on the following text (return only the paragraph, no headings or extra explanation):
 {self.text}
 
-Ensure formal, logical flow. Use scholarly tone, proper grammar, and connect ideas naturally. Do NOT use bullet points in output.
-"""
-        if self.llm is None:
+Instructions:
+- Use a professional academic tone and publishable language.
+- Keep it to one continuous paragraph (no lists or sections).
+- Fix grammar, clarity, and flow; do not add speculative claims.
+"""        if self.llm is None:
             self.llm = ChatGroq(model="llama-3.3-70b-versatile")
         response = self.llm.invoke(prompt)
         paragraph = response.content if hasattr(response, "content") else response

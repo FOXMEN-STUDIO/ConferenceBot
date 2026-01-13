@@ -154,26 +154,45 @@ async def execute_bot(
         "input_text": input_text,
     }
 
-    # If PDF / document provided but no question, build an index and return readiness
+    # If PDF / document provided but no question, build an index and/or run automatic analysis
     if bot_id in ("reviewer", "analyst", "conference") and (paper_text or pdf_path) and not question:
         try:
             if bot_id == "reviewer":
                 from src.paperReviewerBot.bot import build_index as reviewer_build
                 msg = reviewer_build(paper_text or pdf_path)
+                # for reviewer we only index and return a readiness message
+                return templates.TemplateResponse("bot.html", {
+                    "request": request,
+                    "bot": bot,
+                    "result": msg,
+                    "error": None,
+                    "last_values": last_values
+                })
+
             elif bot_id == "analyst":
-                from src.Reseach_AnalysisBot.bot import build_index as analyst_build
-                msg = analyst_build(paper_text or pdf_path)
+                # For analyst: index and then run full automatic analysis and show the result
+                from src.Reseach_AnalysisBot.bot import build_index as analyst_build, Research_paper_analyst
+                _ = analyst_build(paper_text or pdf_path)
+                analysis = Research_paper_analyst(paper_text or pdf_path)
+                return templates.TemplateResponse("bot.html", {
+                    "request": request,
+                    "bot": bot,
+                    "result": analysis,
+                    "error": None,
+                    "last_values": last_values
+                })
+
             else:
                 from src.conferencebot.bot import build_index as conf_build
                 msg = conf_build(paper_text or pdf_path)
 
-            return templates.TemplateResponse("bot.html", {
-                "request": request,
-                "bot": bot,
-                "result": msg,
-                "error": None,
-                "last_values": last_values
-            })
+                return templates.TemplateResponse("bot.html", {
+                    "request": request,
+                    "bot": bot,
+                    "result": msg,
+                    "error": None,
+                    "last_values": last_values
+                })
         except Exception as e:
             pass
 
@@ -229,22 +248,31 @@ async def stream_bot(request: Request, bot_id: str):
         tmp.close()
         pdf_path = tmp.name
 
-    # If PDF/doc provided but no question - build an index and stream a readiness message
+    # If PDF/doc provided but no question - build an index and stream a readiness message OR run analysis for analyst
     if bot_id in ("reviewer", "analyst", "conference") and (paper_text or pdf_path) and not question:
         try:
             if bot_id == "reviewer":
                 from src.paperReviewerBot.bot import build_index as reviewer_build
                 msg = reviewer_build(paper_text or pdf_path)
+                async def idx_gen():
+                    yield msg
+                return StreamingResponse(idx_gen(), media_type='text/plain; charset=utf-8')
+
             elif bot_id == "analyst":
-                from src.Reseach_AnalysisBot.bot import build_index as analyst_build
-                msg = analyst_build(paper_text or pdf_path)
+                # For analyst: build index then run automatic analysis and stream the output
+                from src.Reseach_AnalysisBot.bot import build_index as analyst_build, Research_paper_analyst
+                _ = analyst_build(paper_text or pdf_path)
+                analysis = Research_paper_analyst(paper_text or pdf_path)
+                async def analysis_gen():
+                    yield analysis
+                return StreamingResponse(analysis_gen(), media_type='text/plain; charset=utf-8')
+
             else:
                 from src.conferencebot.bot import build_index as conf_build
                 msg = conf_build(paper_text or pdf_path)
-
-            async def idx_gen():
-                yield msg
-            return StreamingResponse(idx_gen(), media_type='text/plain; charset=utf-8')
+                async def idx_gen():
+                    yield msg
+                return StreamingResponse(idx_gen(), media_type='text/plain; charset=utf-8')
         except Exception as e:
             pass
 
@@ -261,6 +289,14 @@ async def stream_bot(request: Request, bot_id: str):
         pdf_path=pdf_path,
         input_text=input_text
     )
+
+    # Post-process formatting for nicer UI output
+    try:
+        from src.utils.formatter import format_for_bot
+        if result:
+            result = format_for_bot(bot_id, result)
+    except Exception:
+        pass
     if error:
         async def error_gen():
             yield f"Error: {error}"
@@ -269,15 +305,24 @@ async def stream_bot(request: Request, bot_id: str):
     text = result or "(no result)"
 
     async def stream_gen():
-        # Simple chunking into ~200-char pieces so the UI can show progressive output
-        chunk_size = 200
-        for i in range(0, len(text), chunk_size):
-            chunk = text[i:i+chunk_size]
+        # Chunk at sentence boundaries for cleaner streaming
+        from src.utils.formatter import chunk_text_for_stream
+        for chunk in chunk_text_for_stream(text, max_chars=240):
             yield chunk
         # final newline to signal completion
         yield '\n'
-
     return StreamingResponse(stream_gen(), media_type='text/plain; charset=utf-8')
+
+
+@app.post('/render_markdown')
+async def render_markdown(request: Request):
+    """Simple endpoint that accepts raw markdown (form field 'md') and returns sanitized HTML."""
+    form = await request.form()
+    md = form.get('md') or ''
+    from src.utils.formatter import safe_markdown_to_html
+    html_out = safe_markdown_to_html(md)
+    return HTMLResponse(content=html_out)
+
 
 
 if __name__ == "__main__":

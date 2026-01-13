@@ -47,31 +47,16 @@
         </div>
 
         {% elif bot.id == "conference" %}
-        <div class="form-group">
-            <label>Conference URL or PDF path</label>
-            <input type="text" name="pdf_path" value="{{ last_values.pdf_path or '' }}" placeholder="https://conference.org/2026/ or C:/path/to/file.pdf">
-        </div>
-        <div class="form-group">
-            <label>PDF Upload (optional)</label>
-            <input type="file" name="pdf_file" accept="application/pdf">
-        </div>
-        <div class="form-group">
-            <button type="button" class="btn-primary" id="index-btn">Index Conference</button>
-            <p style="color:#aaa; margin-top:8px;">Click <strong>Index Conference</strong> after uploading a PDF or entering a URL to pre-index materials for faster chat.</p>
-        </div>
-
-        <hr style="margin: 1.2rem 0; border-color: var(--border)">
-
-        <div class="chat-container">
+        <div class="chat-only">
             <h3>Conference Chat</h3>
-            <div id="chat-window" style="border:1px solid var(--border); padding:12px; border-radius:8px; height:300px; overflow:auto; background: #091018;">
+            <div id="chat-window" style="border:1px solid var(--border); padding:12px; border-radius:8px; height:360px; overflow:auto; background: #091018;">
                 <!-- Messages will appear here -->
             </div>
             <div style="margin-top:0.8rem; display:flex; gap:8px;">
                 <input type="text" id="chat-input" placeholder="Ask about this conference (e.g., dates, location, topics)..." style="flex:1; padding:0.6rem; border-radius:6px; background:var(--surface); border:1px solid var(--border); color:var(--text);">
                 <button type="button" class="btn-primary" id="chat-send">Send</button>
             </div>
-            <p style="color:#999; margin-top:6px;">Tip: Use <strong>Index Conference</strong> first for faster and more accurate answers when using large PDFs/URLs.</p>
+            <p style="color:#999; margin-top:6px;">Tip: This chat answers questions about the conference profile the bot is configured to use.</p>
         </div>
 
         {% elif bot.id == "writer" %}
@@ -80,22 +65,31 @@
             <textarea name="input_text" rows="8" placeholder="Provide text to generate/expand into an academic paragraph...">{{ last_values.input_text or '' }}</textarea>
         </div>
 
-        {% elif bot.id == "reviewer" or bot.id == "analyst" %}
+        {% elif bot.id == "reviewer" %}
         <div class="form-group">
-            <label>Paper text or PDF path/URL</label>
-            <textarea name="paper_text" rows="8" placeholder="Paste paper text or provide a path/URL to a PDF">{{ last_values.paper_text or '' }}</textarea>
-        </div>
-        <div class="form-group">
-            <label>PDF Upload (optional)</label>
+            <label>PDF Upload</label>
             <input type="file" name="pdf_file" accept="application/pdf">
         </div>
         <div class="form-group">
-            <label>PDF URL or path (optional)</label>
+            <label>PDF URL or local path</label>
             <input type="text" name="pdf_path" value="{{ last_values.pdf_path or '' }}" placeholder="https://... or C:/path/to/file.pdf">
         </div>
         <div class="form-group">
             <label>Question / Instruction</label>
-            <textarea name="question" rows="3" placeholder="What do you want the bot to do? (e.g., review, summarize)">{{ last_values.question or '' }}</textarea>
+            <textarea name="question" rows="3" placeholder="What do you want the reviewer to check? (e.g., strengths, weaknesses)">{{ last_values.question or '' }}</textarea>
+        </div>
+
+        {% elif bot.id == "analyst" %}
+        <div class="form-group">
+            <label>Upload research paper (PDF)</label>
+            <input type="file" id="analyst-file" name="pdf_file" accept="application/pdf">
+        </div>
+        <div class="form-group">
+            <label>PDF URL or local path</label>
+            <input type="text" id="analyst-path" name="pdf_path" value="{{ last_values.pdf_path or '' }}" placeholder="https://... or C:/path/to/file.pdf">
+        </div>
+        <div class="form-group">
+            <p style="color:#999;">When you upload or paste a PDF/URL, the system will automatically analyze the paper and display a detailed summary.</p>
         </div>
 
         {% else %}
@@ -135,7 +129,7 @@
         // If on conference page, let the chat handlers manage interactions
         if (window.location.pathname.includes('/bot/conference')) {
             e.preventDefault();
-            return; // do nothing - chat or index buttons handle it
+            return; // do nothing - chat manages it
         }
 
         e.preventDefault();
@@ -168,12 +162,51 @@
             done = streamDone;
         }
 
+        // After stream completes, render markdown (server-side sanitizer)
+        try {
+            const mdResp = await fetch('/render_markdown', { method: 'POST', body: new URLSearchParams({ md: resultPre.textContent }) });
+            if (mdResp.ok){
+                const html = await mdResp.text();
+                resultPre.innerHTML = html;
+            }
+        } catch (e) { /* ignore */ }
+
         runBtn.disabled = false;
     });
 
-    // Conference-specific handlers
+    // Analyst: auto-run analysis when a file is selected or URL path input loses focus
+    const analystFile = document.getElementById('analyst-file');
+    const analystPath = document.getElementById('analyst-path');
+    if (analystFile) {
+        const autoAnalyze = async function(){
+            // Submit the form (using stream endpoint) without a question to trigger automatic analysis
+            resultBox.style.display = 'block';
+            resultPre.textContent = 'Analyzing document...\n';
+            const formData = new FormData(form);
+            const resp = await fetch(window.location.pathname + '/stream', { method: 'POST', body: formData });
+            if (!resp.ok){
+                const t = await resp.text();
+                resultPre.textContent = 'Error: ' + t;
+                return;
+            }
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let done = false;
+            while (!done) {
+                const {value, done: streamDone} = await reader.read();
+                if (value) {
+                    resultPre.textContent += decoder.decode(value);
+                }
+                done = streamDone;
+            }
+        };
+
+        analystFile.addEventListener('change', autoAnalyze);
+        analystPath && analystPath.addEventListener('blur', autoAnalyze);
+    }
+
+    // Conference-specific handlers (chat-only)
     if (window.location.pathname.includes('/bot/conference')){
-        const indexBtn = document.getElementById('index-btn');
         const chatWindow = document.getElementById('chat-window');
         const chatInput = document.getElementById('chat-input');
         const chatSend = document.getElementById('chat-send');
@@ -190,44 +223,6 @@
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
 
-        // Index button: pre-index the provided source (PDF or URL)
-        indexBtn.addEventListener('click', async function(){
-            indexBtn.disabled = true;
-            appendMsg('Indexing conference source...', 'bot');
-
-            const formData = new FormData(form);
-            // Ensure we do not send a question so server triggers indexing path
-            formData.delete('question');
-
-            const resp = await fetch(window.location.pathname + '/stream', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!resp.ok){
-                const text = await resp.text();
-                appendMsg('Error: ' + text, 'bot');
-                indexBtn.disabled = false;
-                return;
-            }
-
-            const reader = resp.body.getReader();
-            const decoder = new TextDecoder();
-            let done = false;
-            let buf = '';
-            while (!done){
-                const {value, done: streamDone} = await reader.read();
-                if (value) {
-                    buf += decoder.decode(value);
-                    // update last line
-                    appendMsg(buf, 'bot');
-                    buf = '';
-                }
-                done = streamDone;
-            }
-            indexBtn.disabled = false;
-        });
-
         // Chat send button
         chatSend.addEventListener('click', async function(){
             const q = chatInput.value && chatInput.value.trim();
@@ -235,7 +230,8 @@
             appendMsg(q, 'user');
             chatInput.value = '';
 
-            const formData = new FormData(form);
+            // prepare minimal FormData with question only
+            const formData = new FormData();
             formData.set('question', q);
 
             // show placeholder for bot
@@ -267,6 +263,15 @@
                 }
                 done = streamDone;
             }
+
+            // Render the final markdown into sanitized HTML
+            try{
+                const mdResp = await fetch('/render_markdown', { method: 'POST', body: new URLSearchParams({ md: partial }) });
+                if (mdResp.ok){
+                    const html = await mdResp.text();
+                    botPlaceholder.innerHTML = `<div style="text-align:left">${html}</div>`;
+                }
+            } catch(e) { /* ignore */ }
         });
 
         // Send on Enter
