@@ -22,7 +22,8 @@ Instructions:
 - Use a professional academic tone and publishable language.
 - Keep it to one continuous paragraph (no lists or sections).
 - Fix grammar, clarity, and flow; do not add speculative claims.
-"""        if self.llm is None:
+"""
+        if self.llm is None:
             self.llm = ChatGroq(model="llama-3.3-70b-versatile")
         response = self.llm.invoke(prompt)
         paragraph = response.content if hasattr(response, "content") else response

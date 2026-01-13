@@ -1,5 +1,6 @@
 import sys
 import os 
+from pathlib import Path
 from dotenv import load_dotenv,find_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
@@ -25,40 +26,75 @@ def _key_for_source(source: str):
     return source
 
 
-def build_index(source: str = None):
-    """Build and cache a vectorstore for the given source (URL, local PDF path, or raw text)."""
-    key = _key_for_source(source)
-    if key in _VECTORSTORE_CACHE:
-        return f"Already indexed source: {key}"
+def build_index(source: str = None, background: bool = False):
+    """Build and cache a vectorstore for the given source (URL, local PDF path, or raw text).
+    If background=True the indexing will run in a background thread and return immediately.
+    """
+    import hashlib
+    cache_root = Path('.cache/faiss')
+    cache_root.mkdir(parents=True, exist_ok=True)
 
-    if source and source.strip().lower().endswith('.pdf'):
-        loader = PyMuPDFLoader(source)
-        documents = loader.load()
-        texts = [d.page_content for d in documents]
-    elif source and source.strip().lower().startswith('http'):
-        loader = UnstructuredURLLoader(urls=[source])
-        data = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        docs = text_splitter.split_documents(data)
-        texts = [doc.page_content for doc in docs]
-    else:
-        # treat source as raw text or use default profile
-        raw = source or "https://aziz-ashfak.github.io/profile/"
-        if raw.startswith('http'):
-            loader = UnstructuredURLLoader(urls=[raw])
+    key = _key_for_source(source)
+    key_hash = hashlib.sha1((key or '').encode('utf-8')).hexdigest()
+    cache_dir = cache_root / key_hash
+
+    # If in-memory cache exists, return immediately
+    if key in _VECTORSTORE_CACHE:
+        return f"Already indexed source: {key} (in-memory)"
+
+    # If on-disk cache exists, load it quickly into memory
+    if cache_dir.exists():
+        try:
+            embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            vect = FAISS.load_local(str(cache_dir), embeddings)
+            _VECTORSTORE_CACHE[key] = vect
+            return f"Loaded index from disk for source: {key}"
+        except Exception:
+            # fallback to rebuilding if loading fails
+            pass
+
+    def _build_and_save():
+        # Build texts list
+        if source and source.strip().lower().endswith('.pdf'):
+            loader = PyMuPDFLoader(source)
+            documents = loader.load()
+            texts = [d.page_content for d in documents]
+        elif source and source.strip().lower().startswith('http'):
+            loader = UnstructuredURLLoader(urls=[source])
             data = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
             docs = text_splitter.split_documents(data)
             texts = [doc.page_content for doc in docs]
         else:
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-            texts = text_splitter.split_text(raw)
+            raw = source or "https://aziz-ashfak.github.io/profile/"
+            if raw.startswith('http'):
+                loader = UnstructuredURLLoader(urls=[raw])
+                data = loader.load()
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+                docs = text_splitter.split_documents(data)
+                texts = [doc.page_content for doc in docs]
+            else:
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+                texts = text_splitter.split_text(raw)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectorstore = FAISS.from_texts(texts, embeddings)
-    _VECTORSTORE_CACHE[key] = vectorstore
-    return f"Indexed {len(texts)} chunks for source: {key}"
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        vect = FAISS.from_texts(texts, embeddings)
+        try:
+            vect.save_local(str(cache_dir))
+        except Exception:
+            # ignore save errors
+            pass
+        _VECTORSTORE_CACHE[key] = vect
 
+    if background:
+        import threading
+        t = threading.Thread(target=_build_and_save, daemon=True)
+        t.start()
+        return f"Indexing started in background for source: {key}"
+
+    # synchronous build
+    _build_and_save()
+    return f"Indexed {key} (saved to disk: {str(cache_dir)})"
 
 def conference_bot(question, source: str = None):
     _ = load_dotenv(find_dotenv())  # read local .env file

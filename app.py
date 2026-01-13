@@ -253,15 +253,17 @@ async def stream_bot(request: Request, bot_id: str):
         try:
             if bot_id == "reviewer":
                 from src.paperReviewerBot.bot import build_index as reviewer_build
-                msg = reviewer_build(paper_text or pdf_path)
+                msg = reviewer_build(paper_text or pdf_path, background=True)
                 async def idx_gen():
                     yield msg
                 return StreamingResponse(idx_gen(), media_type='text/plain; charset=utf-8')
 
             elif bot_id == "analyst":
-                # For analyst: build index then run automatic analysis and stream the output
+                # For analyst: build index then run automatic analysis and stream the output (synchronous to get immediate analysis)
                 from src.Reseach_AnalysisBot.bot import build_index as analyst_build, Research_paper_analyst
-                _ = analyst_build(paper_text or pdf_path)
+                # start background index for persistence and speed next time
+                _ = analyst_build(paper_text or pdf_path, background=True)
+                # run immediate analysis and stream result
                 analysis = Research_paper_analyst(paper_text or pdf_path)
                 async def analysis_gen():
                     yield analysis
@@ -269,12 +271,26 @@ async def stream_bot(request: Request, bot_id: str):
 
             else:
                 from src.conferencebot.bot import build_index as conf_build
-                msg = conf_build(paper_text or pdf_path)
+                msg = conf_build(paper_text or pdf_path, background=True)
                 async def idx_gen():
                     yield msg
                 return StreamingResponse(idx_gen(), media_type='text/plain; charset=utf-8')
         except Exception as e:
             pass
+
+    # Attempt to use streaming generator from the bot module (if implemented)
+    try:
+        if bot_id == 'conference':
+            from src.conferencebot.bot import conference_bot_stream
+            return StreamingResponse(conference_bot_stream(question or '', source=paper_text or pdf_path), media_type='text/plain; charset=utf-8')
+        elif bot_id == 'reviewer':
+            from src.paperReviewerBot.bot import paper_reviewer_rag_stream
+            return StreamingResponse(paper_reviewer_rag_stream(paper_text or pdf_path, question or ''), media_type='text/plain; charset=utf-8')
+        elif bot_id == 'analyst':
+            from src.Reseach_AnalysisBot.bot import Research_paper_analyst_stream
+            return StreamingResponse(Research_paper_analyst_stream(paper_text or pdf_path), media_type='text/plain; charset=utf-8')
+    except Exception:
+        pass
 
     result, error = run_bot_logic(
         bot_id,
