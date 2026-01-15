@@ -98,6 +98,84 @@
         </div>
         {% endif %}
 
+        {% if bot.id == "questionaire" %}
+        <div class="form-group">
+            <label>Research Variables (semicolon separated)</label>
+            <input type="text" name="variables" value="{{ last_values.variables or '' }}" placeholder="e.g., Job satisfaction; Workload; Manager support">
+        </div>
+        <div class="form-group">
+            <label>Target Population</label>
+            <input type="text" name="population" value="{{ last_values.population or '' }}" placeholder="e.g., Knowledge workers in tech companies, ages 22-50">
+        </div>
+        <div class="form-group">
+            <label>Country / Culture</label>
+            <input type="text" name="culture" value="{{ last_values.culture or '' }}" placeholder="e.g., United States">
+        </div>
+        <div class="form-group">
+            <label>Language</label>
+            <input type="text" name="language" value="{{ last_values.language or 'English' }}">
+        </div>
+        <div class="form-group">
+            <label>Likert Scale Points</label>
+            <input type="number" min="2" max="9" name="scale" value="{{ last_values.scale or '5' }}">
+        </div>
+        <div class="form-group">
+            <label>Research Domain</label>
+            <input type="text" name="domain" value="{{ last_values.domain or '' }}" placeholder="e.g., Organizational Psychology">
+        </div>
+
+        {% elif bot.id == "sample_size" %}
+        <div class="form-group">
+            <label>Mode</label>
+            <select name="mode">
+                <option value="prevalence">Prevalence</option>
+                <option value="mean">Mean estimation</option>
+                <option value="regression">Regression rule-of-thumb</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Prevalence (p) — for prevalence mode</label>
+            <input type="number" step="0.01" min="0" max="1" name="p" value="{{ last_values.p or '0.5' }}">
+        </div>
+        <div class="form-group">
+            <label>Margin of error (d)</label>
+            <input type="number" step="0.01" min="0" max="1" name="d" value="{{ last_values.d or '0.05' }}">
+        </div>
+        <div class="form-group">
+            <label>Population size (optional)</label>
+            <input type="number" name="population" value="{{ last_values.population or '' }}" placeholder="e.g., 10000">
+        </div>
+        <div class="form-group">
+            <label>Standard deviation (for mean mode)</label>
+            <input type="number" step="0.1" name="std_dev" value="{{ last_values.std_dev or '' }}">
+        </div>
+        <div class="form-group">
+            <label>Predictors (for regression)</label>
+            <input type="number" name="predictors" value="{{ last_values.predictors or '3' }}">
+        </div>
+
+        {% elif bot.id == "statistical" %}
+        <div class="form-group">
+            <label>Independent Variable Type</label>
+            <select name="iv_type">
+                <option value="categorical">Categorical</option>
+                <option value="continuous">Continuous</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Dependent Variable Type</label>
+            <select name="dv_type">
+                <option value="continuous">Continuous</option>
+                <option value="categorical">Categorical</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Number of groups (if applicable)</label>
+            <input type="number" min="1" name="groups" value="{{ last_values.groups or '' }}">
+        </div>
+
+        {% endif %}
+
         <button type="submit" class="btn-primary" id="run-btn">
             <i class="fa-solid fa-play"></i> Run
         </button>
